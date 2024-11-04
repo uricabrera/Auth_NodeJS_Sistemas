@@ -1,12 +1,10 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const connection = require('../config/db');
-const crypto = require('crypto');
 
 // Register
 exports.register = async (req, res) => {
     const { email, password } = req.body;
-
     const hashedPassword = await bcrypt.hash(password, 10);
 
     connection.query(
@@ -37,7 +35,7 @@ exports.login = (req, res) => {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-        const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        const token = jwt.sign({ id: user.id, tokenType: 'access' }, process.env.JWT_SECRET, { expiresIn: '1h' });
         res.json({ token });
     });
 };
@@ -46,18 +44,17 @@ exports.login = (req, res) => {
 exports.recoverPassword = (req, res) => {
     const { email } = req.body;
     
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour expiry
+    const resetToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' }); // Eliminando tokenType
 
     connection.query(
-        'UPDATE users SET reset_token = ?, reset_token_expiry = ? WHERE email = ?',
-        [resetToken, resetTokenExpiry, email],
+        'UPDATE users SET reset_token = ?, reset_token_expiry = NOW() + INTERVAL 1 HOUR WHERE email = ?',
+        [resetToken, email],
         (err, result) => {
             if (err || result.affectedRows === 0) {
                 return res.status(500).json({ message: 'Error processing request' });
             }
 
-            // Send email with reset link (skipping actual email sending)
+            // Enviar el token de restablecimiento (simulación de envío)
             res.json({ message: `Password reset token generated. Use this token in reset URL: ${resetToken}` });
         }
     );
@@ -71,7 +68,7 @@ exports.resetPassword = async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     connection.query(
-        'UPDATE users SET password = ?, reset_token = NULL, reset_token_expiry = NULL WHERE reset_token = ? AND reset_token_expiry > NOW()',
+        'UPDATE users SET password = ?, reset_token = NULL WHERE reset_token = ? AND reset_token_expiry > NOW()',
         [hashedPassword, token],
         (err, result) => {
             if (err || result.affectedRows === 0) {
