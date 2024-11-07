@@ -12,7 +12,7 @@ exports.register = async (req, res) => {
         [email, hashedPassword],
         (err, result) => {
             if (err) {
-                return res.status(500).json({ message: 'Error creating user' });
+                return res.status(500).json({ message: 'Error creating user', err: err });
             }
             res.status(201).json({ message: 'User registered successfully' });
         }
